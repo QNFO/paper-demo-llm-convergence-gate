@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Convergence Gate-Check: interactive demo</title>
+<meta name="description" content="Interactive companion to the paper: how much does agreement between independent AI models raise belief in a physics claim? Move the sliders and watch the Bayesian update.">
+<style>
+:root{color-scheme:light dark;--bg:#fff;--fg:#1a1a1f;--mut:#555560;--card:#f4f5f8;--line:#d5d7de;--acc:#1d4ed8;--onacc:#fff;--good:#0a6b3a;--warn:#8a5a00;--bad:#b42318}
+@media(prefers-color-scheme:dark){:root{--bg:#14151a;--fg:#ececf1;--mut:#a4a6b3;--card:#1e2028;--line:#383b47;--acc:#8ab4ff;--onacc:#0b1020;--good:#5fd391;--warn:#f0b64d;--bad:#ff8a80}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif}
+main,header{max-width:860px;margin:0 auto;padding:0 16px}
+header{padding-top:20px}
+a{color:var(--acc)}
+h1{font-size:1.6rem;line-height:1.25;margin:.4rem 0}
+h2{font-size:1.2rem;margin:0 0 .4rem}
+.lead{color:var(--mut);margin:.2rem 0 1rem}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin:12px 0}
+.row{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
+button{font:inherit;min-height:44px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--fg);padding:0 14px;cursor:pointer}
+button[aria-pressed=true]{background:var(--acc);color:var(--onacc);border-color:var(--acc);font-weight:600}
+button:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+label{display:block;font-weight:600;margin-top:12px}
+label small{font-weight:400;color:var(--mut)}
+input[type=range]{width:100%;min-height:44px;accent-color:var(--acc)}
+input:disabled{opacity:.45}
+output{font-variant-numeric:tabular-nums}
+.big{font-size:2.6rem;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:10px}
+.stats div{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px}
+.stats b{display:block;font-size:1.15rem;font-variant-numeric:tabular-nums}
+.stats span{color:var(--mut);font-size:.875rem}
+.chip{display:inline-block;padding:4px 12px;border-radius:99px;border:1px solid currentColor;font-weight:600;font-size:.9rem}
+.good{color:var(--good)}.warn{color:var(--warn)}.bad{color:var(--bad)}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums;font-size:.95rem}
+th,td{border-bottom:1px solid var(--line);padding:8px;text-align:left;white-space:nowrap}
+svg{width:100%;height:auto;display:block}
+svg text{fill:var(--mut);font-size:12px}
+.note{color:var(--mut);font-size:.9rem}
+.ai{border-left:4px solid var(--warn);padding:8px 12px;margin:14px 0;background:var(--card);border-radius:0 8px 8px 0;font-size:.95rem}
+footer{max-width:860px;margin:2rem auto;padding:0 16px 3rem;color:var(--mut);font-size:.9rem}
+</style>
+</head>
+<body>
+<header>
+  <a href="https://papers.qnfo.org/papers/cross-model-llm-convergence-as-a-bayesian-gate-check-for-fringe-physics-claims">&larr; Read the paper</a>
+  <h1>If AI models agree, how much should you believe them?</h1>
+  <p class="lead">Move the sliders. The page recomputes the paper's Bayesian update live, and a simulation checks the arithmetic against 200,000 random claims.</p>
+</header>
+<main>
+<div class="ai"><b>Illustrative, not empirical.</b> All inputs are assumptions from the paper's benchmark, and the paper is AI-written with no recorded human review. This demo shows the maths, not a validated detector.</div>
+
+<section class="card" aria-labelledby="try">
+  <h2 id="try">1. Try it</h2>
+  <div class="row" role="group" aria-label="Presets">
+    <button data-preset="paper">Paper benchmark</button>
+    <button data-preset="corr">Shared bias (&rho; 0.10)</button>
+    <button data-preset="trap">Trap claim</button>
+    <button data-preset="retr">Retrieval (no signal)</button>
+  </div>
+  <label for="p0">Prior belief the claim is true <small>before asking any model</small>: <output id="p0o"></output></label>
+  <input id="p0" type="range" min="0.5" max="60" step="0.5" value="10">
+  <label for="pc">Chance two models agree when the claim is true <small>p<sub>c</sub></small>: <output id="pco"></output></label>
+  <input id="pc" type="range" min="5" max="100" step="1" value="40">
+  <label for="pb">Chance two models agree when the claim is false <small>p<sub>b</sub></small>: <output id="pbo"></output></label>
+  <input id="pb" type="range" min="1" max="60" step="1" value="5">
+  <label for="rho">Shared training bias <small>&rho;, makes false claims look agreed-on</small>: <output id="rhoo"></output></label>
+  <input id="rho" type="range" min="0" max="50" step="1" value="0">
+  <label for="N">Models in the panel: <output id="No"></output></label>
+  <input id="N" type="range" min="2" max="10" step="1" value="4">
+  <p class="note" id="kmode" hidden></p>
+</section>
+
+<section class="card" aria-live="polite" aria-labelledby="res">
+  <h2 id="res">2. What the agreement is worth</h2>
+  <div class="big" id="post"></div>
+  <p id="verdict" style="margin:.3rem 0"></p>
+  <div class="stats">
+    <div><b id="sK"></b><span>Bayes factor per added model</span></div>
+    <div><b id="sO"></b><span>posterior odds</span></div>
+    <div><b id="sN"></b><span>models needed for 95%</span></div>
+    <div><b id="sP2"></b><span>two-model posterior</span></div>
+  </div>
+  <svg id="chart" viewBox="0 0 640 260" role="img" aria-label="Posterior probability against number of agreeing models"></svg>
+  <p class="note">Solid: your settings. Dashed: the paper's benchmark. Green line: 95% target.</p>
+</section>
+
+<section class="card" aria-labelledby="sim">
+  <h2 id="sim">3. Does the maths hold? Simulate it</h2>
+  <p>Draw 200,000 imaginary claims. Each is true with your prior. Models agree with the chances above. Of claims where all models agreed, what share was true?</p>
+  <div class="row"><button id="run">Run simulation</button></div>
+  <p id="simout" class="note">Not run yet.</p>
+  <p class="note">This checks the formula against its own assumptions. It cannot tell you whether real models behave this way.</p>
+</section>
+
+<section class="card" aria-labelledby="sens">
+  <h2 id="sens">4. How fragile is the answer?</h2>
+  <p>Two-model posterior as the false-agreement chance changes (p<sub>c</sub> and prior from your sliders).</p>
+  <div class="scroll"><table id="sensT"></table></div>
+</section>
+
+<section class="card" aria-labelledby="steps">
+  <h2 id="steps">5. Partial agreement (paper &sect;E.2)</h2>
+  <p>An argument has <b>S</b> steps; per-step agreement is <b>q<sub>c</sub></b> if true, <b>q<sub>b</sub></b> if false.</p>
+  <label for="S">Steps in the argument: <output id="So"></output></label>
+  <input id="S" type="range" min="1" max="12" step="1" value="5">
+  <label for="s">Steps the two models matched: <output id="so"></output></label>
+  <input id="s" type="range" min="0" max="12" step="1" value="5">
+  <label for="qc">q<sub>c</sub>: <output id="qco"></output></label>
+  <input id="qc" type="range" min="50" max="100" step="1" value="80">
+  <label for="qb">q<sub>b</sub>: <output id="qbo"></output></label>
+  <input id="qb" type="range" min="10" max="99" step="1" value="60">
+  <p id="stepout"></p>
+</section>
+
+<section class="card" aria-labelledby="chk">
+  <h2 id="chk">6. Reproduces the paper</h2>
+  <div class="scroll"><table id="chkT"></table></div>
+  <p class="note" id="chkNote"></p>
+</section>
+
+<section class="card" aria-labelledby="lim">
+  <h2 id="lim">Limits</h2>
+  <ul>
+    <li>Models share training data, so agreement is partly manufactured. The shared-bias slider shows how little it takes to erase the gain.</li>
+    <li>The Bayes factors come from one illustrative benchmark, not measured data. Technology readiness level 1&ndash;2.</li>
+    <li>Agreement on retrieval questions carries no evidence (factor 1).</li>
+  </ul>
+</section>
+</main>
+<footer>
+  Companion to <a href="https://papers.qnfo.org/papers/cross-model-llm-convergence-as-a-bayesian-gate-check-for-fringe-physics-claims">the QNFO paper</a> &middot;
+  <a href="https://github.com/QNFO/paper-demo-llm-convergence-gate">source and tests</a> &middot; MIT licence
+</footer>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
